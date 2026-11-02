@@ -1,0 +1,10 @@
+# Named Cloudflare tunnel giving the tutor a fixed public address.
+# See README.md, "Going public", for the commands that create the tunnel and
+# fill in <TUNNEL_ID>. The app then connects to wss://tutor.100xsuite.com/ws/tutor
+tunnel: <TUNNEL_ID>
+credentials-file: /home/hh/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: tutor.100xsuite.com
+    service: http://127.0.0.1:9950
+  - service: http_status:404

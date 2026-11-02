@@ -1,0 +1,23 @@
+# systemd user service for the AI German Tutor.
+#
+# Install (as user hh, no sudo needed):
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/german-tutor.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now german-tutor
+#   sudo loginctl enable-linger hh      # keep it running when nobody is logged in
+#
+# Logs:  journalctl --user -u german-tutor -f
+[Unit]
+Description=AI German Tutor (Mira) for the Henry Harvin German app
+After=network-online.target
+
+[Service]
+WorkingDirectory=/home/hh/Desktop/ai german tutor
+ExecStart=/home/hh/Desktop/ai german tutor/run.sh --fg
+Environment=PATH=/home/hh/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

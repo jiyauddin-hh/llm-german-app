@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>German Tutor Test</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1c1f24; --muted:#6b7280; --line:#e3e6ea;
+          --accent:#2563eb; --mira:#eef2ff; --me:#e8f5e9; --warn:#b45309; --err:#b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111317; --card:#1a1d23; --text:#e7e9ee; --muted:#9aa1ad; --line:#2a2f37;
+            --accent:#6b9bff; --mira:#1f2540; --me:#1d3324; --warn:#f0b35a; --err:#f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 4px 0 12px; }
+  nav { display:flex; gap:4px; margin-bottom:12px; border-bottom:1px solid var(--line); }
+  nav a { padding:8px 14px; color:var(--muted); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  nav a.on { color:var(--text); border-color:var(--accent); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; }
+  input, select, button { font:inherit; color:inherit; }
+  input, select { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
+  .row { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px; }
+  button { padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--bg); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  #status { font-size:13px; color:var(--muted); margin-top:8px; }
+  #log { min-height: 260px; max-height: 55vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .msg { padding:8px 12px; border-radius:10px; max-width: 85%; }
+  .mira { background:var(--mira); align-self:flex-start; }
+  .me { background:var(--me); align-self:flex-end; }
+  .note { font-size:13px; margin-top:4px; }
+  .note.correction { color:var(--warn); }
+  .note.hint { color:var(--muted); }
+  .sys { font-size:13px; color:var(--muted); align-self:center; text-align:center; }
+  .sys.err { color:var(--err); }
+  .say { display:flex; gap:8px; margin-top:12px; }
+  .say input { flex:1; }
+  #mic.rec { background:var(--err); border-color:var(--err); color:#fff; }
+  .de { font-weight:600; color:var(--accent); }
+  @media (max-width: 520px) { .row { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <nav><a class="on" href="test.html">Test session</a><a href="logs.html">Log</a></nav>
+  <h1>AI German Tutor: test page</h1>
+
+  <div class="card">
+    <label for="token">Learner login token (Bearer token from the German app)</label>
+    <input id="token" type="password" placeholder="e.g. 15|AbC…" autocomplete="off">
+    <div class="row">
+      <div><label for="chapter">Chapter</label><input id="chapter" type="number" min="1" value="1"></div>
+      <div><label for="lesson">Lesson</label><input id="lesson" type="number" min="1" value="1"></div>
+      <div><label for="mode">Mode</label>
+        <select id="mode"><option value="call">Call (voice)</option><option value="chat">Chat (text)</option></select></div>
+    </div>
+    <div class="actions">
+      <button id="start" class="primary">Start session</button>
+      <button id="end" disabled>End session</button>
+    </div>
+    <div id="status">Not connected.</div>
+  </div>
+
+  <div class="card">
+    <div id="log"></div>
+    <div class="say">
+      <input id="text" placeholder="Ask in English, Hindi or Hinglish, or try German…" disabled>
+      <button id="mic" disabled title="Click to talk, click again to send">🎤</button>
+      <button id="send" class="primary" disabled>Send</button>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let ws = null, mode = "call", recorder = null, player = null, queue = [];
+
+// Replies arrive as one audio part per sentence; play them in order.
+function playNext() {
+  const src = queue.shift();
+  if (!src) { player = null; return; }
+  player = new Audio(src);
+  player.onended = playNext;
+  player.play().catch(() => { player = null; sys("Click anywhere to allow audio playback."); });
+}
+function stopAudio() { queue = []; if (player) { player.onended = null; player.pause(); player = null; } }
+const canRecord = !!(navigator.mediaDevices && window.MediaRecorder);
+
+function status(t) { $("status").textContent = t; }
+function scroll() { $("log").scrollTop = $("log").scrollHeight; }
+function sys(t, err) {
+  const d = document.createElement("div"); d.className = "sys" + (err ? " err" : "");
+  d.textContent = t; $("log").appendChild(d); scroll();
+}
+function bubble(cls, text, correction, hint, segments) {
+  const d = document.createElement("div"); d.className = "msg " + cls;
+  if (segments && segments.length) {
+    for (const s of segments) {
+      const span = document.createElement("span");
+      if (s.lang === "de") { span.className = "de"; span.lang = "de"; }
+      span.textContent = s.text; d.appendChild(span);
+    }
+  } else d.textContent = text;
+  if (correction) { const c = document.createElement("div"); c.className = "note correction"; c.textContent = "✎ " + correction; d.appendChild(c); }
+  if (hint) { const h = document.createElement("div"); h.className = "note hint"; h.textContent = "💡 " + hint; d.appendChild(h); }
+  $("log").appendChild(d); scroll();
+}
+function live(on) {
+  $("start").disabled = on; $("end").disabled = !on;
+  $("text").disabled = !on; $("send").disabled = !on; $("mic").disabled = !on || !canRecord;
+}
+
+function start() {
+  const token = $("token").value.trim();
+  if (!token) { status("Paste a login token first."); return; }
+  mode = $("mode").value;
+  $("log").innerHTML = "";
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws/tutor`);
+  status("Connecting…");
+  ws.onopen = () => ws.send(JSON.stringify({
+    type: "start", token, mode,
+    chapter: Number($("chapter").value), lesson: Number($("lesson").value),
+  }));
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === "ready") {
+      live(true);
+      status(`Connected: ${m.learner || "learner"} · ${m.lesson_title || "lesson"} · voice: ${m.voice} · ${Math.round(m.seconds_left / 60)} min left today`);
+    } else if (m.type === "heard") {
+      bubble("me", m.text);
+    } else if (m.type === "thinking") {
+      status("Mira is thinking…");
+    } else if (m.type === "reply") {
+      bubble("mira", m.text, m.correction, m.hint, m.segments);
+      status(`Difficulty: ${m.difficulty}`);
+    } else if (m.type === "audio") {
+      if (m.part === 0) stopAudio();  // a new reply replaces anything left of the old one
+      queue.push("data:audio/wav;base64," + m.wav);
+      if (!player) playNext();
+    } else if (m.type === "summary") {
+      sys(`Session over: ${m.turns} turns · ${m.xp} XP · ${m.seconds}s · words: ${m.words_practised.join(", ") || "none"}`);
+    } else if (m.type === "error") {
+      sys(`[${m.code}] ${m.message}`, true);
+    }
+  };
+  ws.onclose = () => { live(false); status("Disconnected."); ws = null; };
+  ws.onerror = () => sys("Connection error.", true);
+}
+
+function send() {
+  const t = $("text").value.trim();
+  if (!t || !ws) return;
+  bubble("me", t);
+  ws.send(JSON.stringify({ type: "user_text", text: t }));
+  $("text").value = "";
+}
+
+// The mic records audio and the server turns it into text (Hindi, English,
+// Hinglish or German), so this works in any browser, not only Chrome.
+async function toggleMic() {
+  if (recorder && recorder.state === "recording") { recorder.stop(); return; }
+  stopAudio();
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { sys("Microphone permission was refused.", true); return; }
+  const chunks = [];
+  recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+  recorder.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    $("mic").classList.remove("rec"); $("mic").textContent = "🎤";
+    const blob = new Blob(chunks, { type: recorder.mimeType });
+    const b64 = await new Promise(res => {
+      const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.readAsDataURL(blob);
+    });
+    if (ws) ws.send(JSON.stringify({ type: "user_audio", audio: b64 }));
+  };
+  recorder.start();
+  $("mic").classList.add("rec"); $("mic").textContent = "■";
+  setTimeout(() => recorder && recorder.state === "recording" && recorder.stop(), 30000);
+}
+
+$("start").onclick = start;
+$("end").onclick = () => ws && ws.send(JSON.stringify({ type: "end" }));
+$("send").onclick = send;
+$("text").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+$("mic").onclick = toggleMic;
+</script>
+</body>
+</html>

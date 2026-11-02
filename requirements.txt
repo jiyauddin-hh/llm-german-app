@@ -1,0 +1,11 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+httpx>=0.27
+python-dotenv>=1.0
+piper-tts>=1.2
+faster-whisper>=1.1
+# faster-whisper 1.2 passes an argument PyAV 15+ removed
+av>=13,<15
+# GPU speech recognition (optional; CPU is used without them)
+nvidia-cublas-cu12
+nvidia-cudnn-cu12==9.*

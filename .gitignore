@@ -1,0 +1,7 @@
+venv/
+.env
+data/
+.run/
+__pycache__/
+voices/*.onnx
+xtts/venv/

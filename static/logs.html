@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>German Tutor Log</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1c1f24; --muted:#6b7280; --line:#e3e6ea;
+          --accent:#2563eb; --ok:#15803d; --warn:#b45309; --err:#b91c1c;
+          --okbg:#ecfdf3; --warnbg:#fff7ed; --errbg:#fef2f2; --chip:#f1f3f6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111317; --card:#1a1d23; --text:#e7e9ee; --muted:#9aa1ad; --line:#2a2f37;
+            --accent:#6b9bff; --ok:#4ade80; --warn:#f0b35a; --err:#f87171;
+            --okbg:#14271c; --warnbg:#2b2214; --errbg:#2d1717; --chip:#23272e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  nav { display:flex; gap:4px; margin-bottom:12px; border-bottom:1px solid var(--line); }
+  nav a { padding:8px 14px; color:var(--muted); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  nav a.on { color:var(--text); border-color:var(--accent); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+  .status { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }
+  .stat .k { font-size:12px; color:var(--muted); }
+  .stat .v { font-weight:600; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; background:var(--muted); }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); } .dot.err { background:var(--err); }
+  details.help summary { cursor:pointer; color:var(--muted); }
+  details.help ol { margin:8px 0 0; padding-left:20px; }
+  .tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .tools select, .tools input, .tools button { font:inherit; color:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
+  .tools input { flex:1; min-width:160px; }
+  .tools button { cursor:pointer; }
+  .tools .count { color:var(--muted); font-size:12px; margin-left:auto; }
+  #list { max-height: 62vh; overflow-y:auto; padding:0; }
+  .ev { display:grid; grid-template-columns: 70px 120px 92px 1fr; gap:8px; padding:7px 12px; border-bottom:1px solid var(--line); align-items:start; }
+  .ev:last-child { border-bottom:0; }
+  .ev.ok { background:var(--okbg); } .ev.warning { background:var(--warnbg); } .ev.error { background:var(--errbg); }
+  .ev .time { color:var(--muted); font-variant-numeric: tabular-nums; font-size:12px; padding-top:1px; }
+  .ev .who { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge { display:inline-block; padding:0 6px; border-radius:6px; font-size:11px; font-weight:600; color:#fff; margin-right:4px; }
+  .ev .step { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .ev .msg { word-break: break-word; }
+  .ev.warning .msg { color:var(--warn); } .ev.error .msg { color:var(--err); }
+  .chips { margin-top:3px; display:flex; flex-wrap:wrap; gap:4px; }
+  .chip { background:var(--chip); border-radius:6px; padding:0 6px; font-size:12px; color:var(--muted); }
+  .chip b { color:var(--text); font-weight:600; }
+  .empty { padding:30px; text-align:center; color:var(--muted); }
+  @media (max-width: 640px) {
+    .status { grid-template-columns: 1fr 1fr; }
+    .ev { grid-template-columns: 60px 1fr; }
+    .ev .who, .ev .step { grid-column: 2; }
+    .ev .msg { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="test.html">Test session</a><a class="on" href="logs.html">Log</a></nav>
+
+  <div class="card status">
+    <div class="stat"><div class="k">Brain (thinking)</div><div class="v" id="s-brain"><span class="dot"></span>…</div></div>
+    <div class="stat"><div class="k">Voice (speaking)</div><div class="v" id="s-voice"><span class="dot"></span>…</div></div>
+    <div class="stat"><div class="k">Speech recognition (hearing)</div><div class="v" id="s-ears"><span class="dot"></span>…</div></div>
+    <div class="stat"><div class="k">Sessions now</div><div class="v" id="s-sessions"><span class="dot"></span>…</div></div>
+  </div>
+
+  <div class="card">
+    <details class="help">
+      <summary>How to read this log</summary>
+      <ol>
+        <li><b>🔌 Connect</b>: the learner's app opens a session and says which chapter, lesson and mode.</li>
+        <li><b>🔑 Login</b>: the tutor asks the German app's server whether the learner's login is valid.</li>
+        <li><b>⏱ Limits</b>: checks there is a free slot and the learner has minutes left today.</li>
+        <li><b>📘 Lesson</b>: loads the lesson's words and sentences for Mira to teach.</li>
+        <li><b>🎤 Hear</b>: what the learner typed, or what speech recognition heard them say.</li>
+        <li><b>🧠 Think / 💬 Reply</b>: Mira's answer, how long it took, and the German in it.</li>
+        <li><b>🔊 Voice</b>: each sentence turned into speech. <i>xtts</i> is the natural voice, <i>piper</i> the robotic backup.</li>
+        <li><b>🏁 End</b>: why the session ended, turns, XP and length.</li>
+      </ol>
+      <p>Green rows went well, orange rows are worth a look, red rows are problems. <b>took</b> is how long that step made the learner wait.
+         Each session has a badge (S1, S2, …) so you can follow one learner. The log is kept in memory: the last 2000 events, cleared when the server restarts.</p>
+    </details>
+  </div>
+
+  <div class="card tools">
+    <select id="f-session"><option value="">All sessions</option></select>
+    <select id="f-level">
+      <option value="">Everything</option>
+      <option value="problems">Problems only</option>
+      <option value="conversation">Conversation only</option>
+    </select>
+    <input id="f-text" placeholder="Search (name, words, error…)">
+    <button id="pause">Pause</button>
+    <button id="clear">Clear view</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="card" id="list"><div class="empty">Waiting for events…</div></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const key = new URLSearchParams(location.search).get("key");
+const q = key ? `&key=${encodeURIComponent(key)}` : "";
+const STEPS = { server:"🖥 Server", connect:"🔌 Connect", login:"🔑 Login", limits:"⏱ Limits",
+  lesson:"📘 Lesson", brain:"🧠 Brain", hear:"🎤 Hear", think:"🧠 Think", reply:"💬 Reply",
+  voice:"🔊 Voice", end:"🏁 End", error:"⚠ Error" };
+const DETAIL_NAMES = { took:"took", length:"audio length", language:"language", on:"on", brain:"brain",
+  german:"German taught", correction:"correction", hint:"hint", difficulty:"next question",
+  reason:"reason", vocabulary:"words", words_practised:"words practised", used_today_min:"used today (min)",
+  daily_limit_min:"daily limit (min)", active_sessions:"active", max_sessions:"max", received_type:"received" };
+const COLORS = ["#2563eb","#7c3aed","#db2777","#0d9488","#ea580c","#4f46e5","#0891b2","#65a30d"];
+
+let all = [], lastId = 0, paused = false, cleared = 0;
+const sessions = new Map();
+
+function fmtTime(t) { return new Date(t * 1000).toLocaleTimeString([], { hour12:false }); }
+function color(s) { return COLORS[(parseInt(s.slice(1)) - 1) % COLORS.length]; }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+function matches(e) {
+  if (e.id <= cleared) return false;
+  const s = $("f-session").value, lv = $("f-level").value, txt = $("f-text").value.trim().toLowerCase();
+  if (s && e.session !== s) return false;
+  if (lv === "problems" && !(e.level === "warning" || e.level === "error")) return false;
+  if (lv === "conversation" && !["hear","reply","think"].includes(e.step)) return false;
+  if (txt) {
+    const hay = (e.message + " " + (e.learner || "") + " " + (e.session || "") + " " + JSON.stringify(e.details)).toLowerCase();
+    if (!hay.includes(txt)) return false;
+  }
+  return true;
+}
+
+function row(e) {
+  const r = el("div", "ev " + e.level);
+  r.appendChild(el("div", "time", fmtTime(e.at)));
+  const who = el("div", "who");
+  if (e.session) {
+    const b = el("span", "badge", e.session); b.style.background = color(e.session); who.appendChild(b);
+    who.appendChild(document.createTextNode(e.learner || ""));
+  } else who.appendChild(el("span", "step", "server"));
+  r.appendChild(who);
+  r.appendChild(el("div", "step", STEPS[e.step] || e.step));
+  const m = el("div", "msg", e.message);
+  const keys = Object.keys(e.details || {});
+  if (keys.length) {
+    const chips = el("div", "chips");
+    for (const k of keys) {
+      let v = e.details[k]; if (Array.isArray(v)) v = v.join(", ");
+      const c = el("span", "chip"); c.appendChild(document.createTextNode((DETAIL_NAMES[k] || k) + ": "));
+      c.appendChild(el("b", null, String(v))); chips.appendChild(c);
+    }
+    m.appendChild(chips);
+  }
+  r.appendChild(m);
+  return r;
+}
+
+function render() {
+  const list = $("list");
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+  const shown = all.filter(matches);
+  list.replaceChildren();
+  if (!shown.length) list.appendChild(el("div", "empty", all.length ? "No events match the filter." : "Waiting for events… Start a session on the Test session tab."));
+  for (const e of shown) list.appendChild(row(e));
+  $("count").textContent = `${shown.length} of ${all.filter(e => e.id > cleared).length} events`;
+  if (atBottom) list.scrollTop = list.scrollHeight;
+}
+
+function addSessions(evts) {
+  for (const e of evts) if (e.session && !sessions.has(e.session)) {
+    sessions.set(e.session, e.learner);
+    const o = el("option", null, e.session); o.value = e.session; $("f-session").appendChild(o);
+  }
+  for (const e of evts) if (e.session && e.learner && sessions.get(e.session) !== e.learner) {
+    sessions.set(e.session, e.learner);
+    const o = [...$("f-session").options].find(x => x.value === e.session); if (o) o.textContent = `${e.session} · ${e.learner}`;
+  }
+}
+
+async function poll() {
+  if (!paused) {
+    try {
+      const r = await fetch(`/api/logs?after=${lastId}${q}`);
+      if (r.status === 403) { $("list").replaceChildren(el("div", "empty", "The log only opens on the tutor's own PC (or with ?key=… set to LOG_KEY).")); return; }
+      const d = await r.json();
+      if (d.last_id < lastId) {  // the server restarted: its event ids start again from 1
+        all = []; lastId = 0; cleared = 0; return poll();
+      }
+      if (d.events.length) {
+        all = all.concat(d.events).slice(-d.max_events);
+        lastId = d.events[d.events.length - 1].id;
+        addSessions(d.events); render();
+      }
+    } catch { /* server down: keep trying */ }
+  }
+  setTimeout(poll, 1000);
+}
+
+function stat(id, level, text) { const v = $(id); v.replaceChildren(el("span", "dot " + level)); v.appendChild(document.createTextNode(text)); }
+async function health() {
+  try {
+    const h = await (await fetch("/health")).json();
+    const b = h.brain;
+    if (b.mode === "ollama") stat("s-brain", b.ollama.available ? "ok" : "err", `Local ${b.ollama.model}`);
+    else stat("s-brain", b.claude.available ? "ok" : (b.ollama.available ? "warn" : "err"),
+              b.claude.available ? `Claude ${b.claude.model}` + (b.mode === "auto" ? " (local backup)" : "") : "Claude missing");
+    stat("s-voice", h.voice === "xtts" ? "ok" : h.voice === "piper" ? "warn" : "err",
+         h.voice === "xtts" ? "XTTS (natural)" : h.voice === "piper" ? "Piper (robotic backup)" : "None (app speaks)");
+    const s = h.speech_to_text;
+    stat("s-ears", !s.available ? "err" : s.device === "cuda" ? "ok" : "warn", s.available ? `Whisper ${s.model} on ${s.device === "cuda" ? "GPU" : (s.device || "…")}` : "Not installed");
+    stat("s-sessions", h.active_sessions >= h.max_sessions ? "warn" : "ok", `${h.active_sessions} of ${h.max_sessions} in use`);
+  } catch {
+    for (const id of ["s-brain","s-voice","s-ears","s-sessions"]) stat(id, "err", "Server not reachable");
+  }
+  setTimeout(health, 5000);
+}
+
+for (const id of ["f-session","f-level"]) $(id).onchange = render;
+$("f-text").oninput = render;
+$("pause").onclick = () => { paused = !paused; $("pause").textContent = paused ? "Resume" : "Pause"; };
+$("clear").onclick = () => { cleared = lastId; render(); };
+poll(); health();
+</script>
+</body>
+</html>
